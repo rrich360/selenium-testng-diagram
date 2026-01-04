@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Selenium & TestNG Test Execution Flow</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        
+        .title {
+            color: #2c3e50;
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            color: #5a6c7d;
+            font-size: 16px;
+            margin-bottom: 25px;
+            text-align: center;
+            font-weight: 500;
+        }
+        
+        canvas {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        
+        .controls {
+            margin-top: 25px;
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 14px 28px;
+            font-size: 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            font-family: inherit;
+        }
+        
+        .restart-btn {
+            background: #5B86E5;
+            color: white;
+        }
+        
+        .restart-btn:hover {
+            background: #4a6ec9;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(91,134,229,0.4);
+        }
+        
+        .pdf-btn {
+            background: #36D1DC;
+            color: white;
+        }
+        
+        .pdf-btn:hover {
+            background: #2ab8c4;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(54,209,220,0.4);
+        }
+        
+        .info {
+            color: #5a6c7d;
+            margin-top: 20px;
+            font-size: 14px;
+            text-align: center;
+            max-width: 900px;
+            line-height: 1.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="title">Selenium & TestNG Test Execution Flow</div>
+    <div class="subtitle">Automated Testing Architecture - Order of Operations</div>
+    <canvas id="canvas" width="1200" height="900"></canvas>
+    <div class="controls">
+        <button class="restart-btn" onclick="restartAnimation()">↻ Restart Animation</button>
+        <button class="pdf-btn" onclick="downloadPDF()">⬇ Download as PDF</button>
+    </div>
+    <div class="info">
+        Watch the bright pulsating flow as tests execute through each component
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        const colors = {
+            testng: '#E8F4F8',
+            testngBorder: '#4A90E2',
+            selenium: '#E8F5E9',
+            seleniumBorder: '#4CAF50',
+            browser: '#FFF3E0',
+            browserBorder: '#FF9800',
+            app: '#F3E5F5',
+            appBorder: '#9C27B0',
+            text: '#2C3E50',
+            arrow: '#7F8C8D',
+            pulseColor: '#FFD700'
+        };
+        
+        let animationFrame = 0;
+        let pulses = [];
+        
+        class Component {
+            constructor(x, y, width, height, label, description, number, bgColor, borderColor, customIcon = null) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.label = label;
+                this.description = description;
+                this.number = number;
+                this.bgColor = bgColor;
+                this.borderColor = borderColor;
+                this.customIcon = customIcon;
+            }
+            
+            draw() {
+                // Rounded rectangle background
+                ctx.fillStyle = this.bgColor;
+                this.roundRect(this.x, this.y, this.width, this.height, 12);
+                ctx.fill();
+                
+                // Border
+                ctx.strokeStyle = this.borderColor;
+                ctx.lineWidth = 3;
+                this.roundRect(this.x, this.y, this.width, this.height, 12);
+                ctx.stroke();
+                
+                // Number badge
+                ctx.fillStyle = this.borderColor;
+                ctx.beginPath();
+                ctx.arc(this.x + 20, this.y + 20, 15, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '700 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(this.number, this.x + 20, this.y + 26);
+                
+                // Custom icon or emoji
+                if (this.customIcon) {
+                    this.customIcon(this.x + this.width / 2, this.y + 55);
+                } else {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('📋', this.x + this.width / 2, this.y + 60);
+                }
+                
+                // Label
+                ctx.font = '600 14px Inter, sans-serif';
+                ctx.fillStyle = colors.text;
+                const lines = this.label.split('\n');
+                lines.forEach((line, i) => {
+                    ctx.fillText(line, this.x + this.width / 2, this.y + 90 + i * 18);
+                });
+                
+                // Description - wrapped to fit inside
+                ctx.font = '400 10px Inter, sans-serif';
+                ctx.fillStyle = '#7F8C8D';
+                const maxWidth = this.width - 16;
+                const startY = this.y + 90 + (lines.length * 18) + 5;
+                this.wrapText(this.description, this.x + this.width / 2, startY, maxWidth, 12);
+            }
+            
+            wrapText(text, x, y, maxWidth, lineHeight) {
+                const words = text.split(' ');
+                let line = '';
+                let yPos = y;
+                
+                for (let n = 0; n < words.length; n++) {
+                    const testLine = line + words[n] + ' ';
+                    const metrics = ctx.measureText(testLine);
+                    const testWidth = metrics.width;
+                    
+                    if (testWidth > maxWidth && n > 0) {
+                        ctx.fillText(line, x, yPos);
+                        line = words[n] + ' ';
+                        yPos += lineHeight;
+                    } else {
+                        line = testLine;
+                    }
+                }
+                ctx.fillText(line, x, yPos);
+            }
+            
+            roundRect(x, y, width, height, radius) {
+                ctx.beginPath();
+                ctx.moveTo(x + radius, y);
+                ctx.lineTo(x + width - radius, y);
+                ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+                ctx.lineTo(x + width, y + height - radius);
+                ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+                ctx.lineTo(x + radius, y + height);
+                ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+                ctx.lineTo(x, y + radius);
+                ctx.quadraticCurveTo(x, y, x + radius, y);
+                ctx.closePath();
+            }
+        }
+        
+        // Custom icon functions
+        function drawChromeIcon(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Outer circle segments
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fillStyle = '#FFC107';
+            ctx.fill();
+            
+            // Red segment
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, 20, -Math.PI / 2, Math.PI / 6);
+            ctx.closePath();
+            ctx.fillStyle = '#DB4437';
+            ctx.fill();
+            
+            // Green segment
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, 20, Math.PI / 6, (5 * Math.PI) / 6);
+            ctx.closePath();
+            ctx.fillStyle = '#0F9D58';
+            ctx.fill();
+            
+            // Yellow segment
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.arc(0, 0, 20, (5 * Math.PI) / 6, -Math.PI / 2);
+            ctx.closePath();
+            ctx.fillStyle = '#F4B400';
+            ctx.fill();
+            
+            // Blue center circle
+            ctx.beginPath();
+            ctx.arc(0, 0, 9, 0, Math.PI * 2);
+            ctx.fillStyle = '#4285F4';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawEdgeIcon(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            
+            // Create circular swirl shape
+            const gradient1 = ctx.createLinearGradient(-20, -20, 20, 20);
+            gradient1.addColorStop(0, '#0078D4');
+            gradient1.addColorStop(0.5, '#00BCF2');
+            gradient1.addColorStop(1, '#00D4AA');
+            
+            // Main swirl shape - create wave
+            ctx.beginPath();
+            ctx.arc(0, 0, 20, 0, Math.PI * 2);
+            ctx.fillStyle = gradient1;
+            ctx.fill();
+            
+            // Create the wave/swirl effect
+            ctx.beginPath();
+            ctx.moveTo(-15, 5);
+            ctx.bezierCurveTo(-10, -10, 5, -15, 15, -5);
+            ctx.bezierCurveTo(18, 0, 18, 8, 12, 15);
+            ctx.bezierCurveTo(5, 18, -5, 15, -10, 10);
+            ctx.closePath();
+            
+            const gradient2 = ctx.createLinearGradient(-15, 0, 15, 0);
+            gradient2.addColorStop(0, '#0078D4');
+            gradient2.addColorStop(0.3, '#00A4EF');
+            gradient2.addColorStop(0.7, '#00D4AA');
+            gradient2.addColorStop(1, '#7FBA00');
+            ctx.fillStyle = gradient2;
+            ctx.fill();
+            
+            // Inner highlight
+            ctx.beginPath();
+            ctx.arc(-3, -3, 8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawDocumentIcon(x, y) {
+            ctx.save();
+            ctx.translate(x, y);
+            ctx.fillStyle = '#ECEFF1';
+            ctx.fillRect(-12, -15, 24, 30);
+            ctx.strokeStyle = '#607D8B';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(-12, -15, 24, 30);
+            
+            // Lines on document
+            ctx.strokeStyle = '#90A4AE';
+            ctx.lineWidth = 1.5;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.moveTo(-8, -8 + i * 6);
+                ctx.lineTo(8, -8 + i * 6);
+                ctx.stroke();
+            }
+            ctx.restore();
+        }
+        
+        // Define components - increased height for descriptions
+        const components = {
+            testng: new Component(50, 80, 150, 160, 'TestNG\nSuite', 
+                'Initialize test framework and configuration', 1, 
+                colors.testng, colors.testngBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('📋', x, y);
+                }),
+            
+            testClass: new Component(50, 290, 150, 160, 'Test Class', 
+                'Load test class with @Test methods', 2, 
+                colors.testng, colors.testngBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('🧪', x, y);
+                }),
+            
+            beforeMethod: new Component(50, 500, 150, 160, '@Before\nMethod', 
+                'Execute setup before each test', 3, 
+                colors.testng, colors.testngBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('⚙️', x, y);
+                }),
+            
+            webDriver: new Component(300, 200, 150, 160, 'WebDriver\n(Selenium)', 
+                'Initialize Selenium WebDriver', 4, 
+                colors.selenium, colors.seleniumBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('🎮', x, y);
+                }),
+            
+            browserFactory: new Component(300, 400, 150, 160, 'Browser\nFactory', 
+                'Select and configure browser', 5, 
+                colors.selenium, colors.seleniumBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('🏭', x, y);
+                }),
+            
+            chrome: new Component(550, 80, 140, 140, 'Chrome', 
+                'Launch Chrome browser', 6, 
+                colors.browser, colors.browserBorder, drawChromeIcon),
+            
+            firefox: new Component(550, 250, 140, 140, 'Firefox', 
+                'Launch Firefox browser', 6, 
+                colors.browser, colors.browserBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('🦊', x, y);
+                }),
+            
+            edge: new Component(550, 420, 140, 140, 'Edge', 
+                'Launch Edge browser', 6, 
+                colors.browser, colors.browserBorder, drawEdgeIcon),
+            
+            userApp: new Component(780, 130, 150, 150, 'User Mgmt\nApp', 
+                'Navigate to User Management', 7, 
+                colors.app, colors.appBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('👥', x, y);
+                }),
+            
+            providerApp: new Component(780, 330, 150, 150, 'Provider\nDashboard', 
+                'Navigate to Dashboard', 8, 
+                colors.app, colors.appBorder, (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('📊', x, y);
+                }),
+            
+            assertions: new Component(1000, 220, 150, 160, 'Test\nAssertions', 
+                'Verify expected results', 9, 
+                colors.selenium, colors.seleniumBorder, drawDocumentIcon),
+            
+            results: new Component(550, 670, 280, 160, 'Test Results & Reports', 
+                'Generate HTML reports with pass/fail status', 10, 
+                '#FFEBEE', '#F44336', (x, y) => {
+                    ctx.font = '32px Arial';
+                    ctx.fillText('📈', x, y);
+                })
+        };
+        
+        class Pulse {
+            constructor(fromComp, toComp, color, delay = 0) {
+                this.from = components[fromComp];
+                this.to = components[toComp];
+                this.color = color;
+                this.delay = delay;
+                this.progress = 0;
+                this.active = false;
+            }
+            
+            getPosition() {
+                let fromX = this.from.x + this.from.width / 2;
+                let fromY = this.from.y + this.from.height / 2;
+                let toX = this.to.x + this.to.width / 2;
+                let toY = this.to.y + this.to.height / 2;
+                
+                // Adjust to edges
+                if (Math.abs(fromX - toX) > Math.abs(fromY - toY)) {
+                    if (fromX < toX) {
+                        fromX = this.from.x + this.from.width;
+                        toX = this.to.x;
+                    } else {
+                        fromX = this.from.x;
+                        toX = this.to.x + this.to.width;
+                    }
+                } else {
+                    if (fromY < toY) {
+                        fromY = this.from.y + this.from.height;
+                        toY = this.to.y;
+                    } else {
+                        fromY = this.from.y;
+                        toY = this.to.y + this.to.height;
+                    }
+                }
+                
+                return {
+                    x: fromX + (toX - fromX) * this.progress,
+                    y: fromY + (toY - fromY) * this.progress
+                };
+            }
+            
+            update() {
+                if (this.delay > 0) {
+                    this.delay--;
+                    return false;
+                }
+                this.active = true;
+                this.progress += 0.008;
+                return this.progress <= 1;
+            }
+            
+            draw() {
+                if (!this.active) return;
+                
+                const pos = this.getPosition();
+                
+                // Draw multiple glowing circles for pulse effect
+                ctx.shadowBlur = 25;
+                ctx.shadowColor = this.color;
+                
+                // Outer glow - convert hex to rgba
+                const rgb = this.hexToRgb(this.color);
+                ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.3)`;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 16, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Middle glow
+                ctx.fillStyle = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.6)`;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 10, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Core
+                ctx.fillStyle = this.color;
+                ctx.beginPath();
+                ctx.arc(pos.x, pos.y, 6, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.shadowBlur = 0;
+            }
+            
+            hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : { r: 255, g: 255, b: 255 };
+            }
+        }
+        
+        function drawArrow(fromComp, toComp) {
+            const from = components[fromComp];
+            const to = components[toComp];
+            
+            let fromX = from.x + from.width / 2;
+            let fromY = from.y + from.height / 2;
+            let toX = to.x + to.width / 2;
+            let toY = to.y + to.height / 2;
+            
+            // Adjust to edges
+            if (Math.abs(fromX - toX) > Math.abs(fromY - toY)) {
+                if (fromX < toX) {
+                    fromX = from.x + from.width;
+                    toX = to.x;
+                } else {
+                    fromX = from.x;
+                    toX = to.x + to.width;
+                }
+            } else {
+                if (fromY < toY) {
+                    fromY = from.y + from.height;
+                    toY = to.y;
+                } else {
+                    fromY = from.y;
+                    toY = to.y + to.height;
+                }
+            }
+            
+            ctx.strokeStyle = colors.arrow;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([10, 5]);
+            
+            ctx.beginPath();
+            ctx.moveTo(fromX, fromY);
+            ctx.lineTo(toX, toY);
+            ctx.stroke();
+            
+            // Arrow head
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            const headlen = 12;
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), 
+                      toY - headlen * Math.sin(angle - Math.PI / 6));
+            ctx.moveTo(toX, toY);
+            ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), 
+                      toY - headlen * Math.sin(angle + Math.PI / 6));
+            ctx.stroke();
+        }
+        
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw all arrows
+            drawArrow('testng', 'testClass');
+            drawArrow('testClass', 'beforeMethod');
+            drawArrow('beforeMethod', 'webDriver');
+            drawArrow('webDriver', 'browserFactory');
+            drawArrow('browserFactory', 'chrome');
+            drawArrow('browserFactory', 'firefox');
+            drawArrow('browserFactory', 'edge');
+            drawArrow('chrome', 'userApp');
+            drawArrow('chrome', 'providerApp');
+            drawArrow('userApp', 'assertions');
+            drawArrow('providerApp', 'assertions');
+            drawArrow('assertions', 'results');
+            
+            // Draw components
+            Object.values(components).forEach(comp => comp.draw());
+            
+            // Create new pulses periodically with specific colors for each path
+            if (animationFrame % 80 === 0) {
+                // Blue pulses: TestNG → Test Class
+                pulses.push(new Pulse('testng', 'testClass', '#2196F3', 0));
+            }
+            if (animationFrame % 80 === 15) {
+                // Blue pulses: Test Class → @Before Method
+                pulses.push(new Pulse('testClass', 'beforeMethod', '#2196F3', 0));
+            }
+            if (animationFrame % 80 === 30) {
+                // Blue pulses: @Before Method → WebDriver
+                pulses.push(new Pulse('beforeMethod', 'webDriver', '#2196F3', 0));
+            }
+            if (animationFrame % 80 === 45) {
+                // Green pulses: WebDriver → Browser Factory
+                pulses.push(new Pulse('webDriver', 'browserFactory', '#4CAF50', 0));
+            }
+            if (animationFrame % 80 === 60) {
+                // Green pulses: Browser Factory → Chrome/Firefox/Edge
+                pulses.push(new Pulse('browserFactory', 'chrome', '#4CAF50', 0));
+                pulses.push(new Pulse('browserFactory', 'firefox', '#4CAF50', 3));
+                pulses.push(new Pulse('browserFactory', 'edge', '#4CAF50', 6));
+            }
+            if (animationFrame % 100 === 0) {
+                // Orange pulses: Chrome → User Mgmt App and Provider Dashboard
+                pulses.push(new Pulse('chrome', 'userApp', '#FF9800', 0));
+                pulses.push(new Pulse('chrome', 'providerApp', '#FF9800', 5));
+            }
+            if (animationFrame % 100 === 20) {
+                // Purple pulses: User Mgmt App → Test Assertions
+                pulses.push(new Pulse('userApp', 'assertions', '#9C27B0', 0));
+            }
+            if (animationFrame % 100 === 30) {
+                // Purple pulses: Provider Dashboard → Test Assertions
+                pulses.push(new Pulse('providerApp', 'assertions', '#9C27B0', 0));
+            }
+            if (animationFrame % 100 === 50) {
+                // Green pulses: Test Assertions → Test Results & Reports
+                pulses.push(new Pulse('assertions', 'results', '#4CAF50', 0));
+            }
+            
+            // Update and draw pulses
+            pulses = pulses.filter(p => p.update());
+            pulses.forEach(pulse => pulse.draw());
+            
+            animationFrame++;
+            requestAnimationFrame(animate);
+        }
+        
+        function restartAnimation() {
+            animationFrame = 0;
+            pulses = [];
+        }
+        
+        function downloadPDF() {
+            window.print();
+        }
+        
+        animate();
+    </script>
+</body>
+</html>
